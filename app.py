@@ -565,5 +565,3 @@ if __name__ == '__main__':
     print('  Running at  →  http://localhost:5000')
     print('='*50 + '\n')
     app.run(debug=True, port=5000)
-PYEOF
-echo "app.py written"

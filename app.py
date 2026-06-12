@@ -9,8 +9,75 @@ app = Flask(__name__, static_folder='.')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'studybuddy-riphah-secret-change-in-production')
 CORS(app)
 
-DB_FILE   = 'studybuddy.db'
-AV_CYCLE  = ['av1', 'av2', 'av3', 'av4', 'av5']
+DB_FILE  = 'studybuddy.db'
+AV_CYCLE = ['av1', 'av2', 'av3', 'av4', 'av5']
+
+# ── DEPARTMENT → SEMESTER → SUBJECTS MAP ─────────────────────────────────────
+DEPT_SUBJECTS = {
+    "BSCS": {
+        "Semester 2 (FA25)": ["Digital Logic Design","Object-Oriented Programming","Pre-Calculus II","Expository Writing","Probability & Statistics","Calculus & Analytic Geometry","Understanding Quran II","Islamic Studies"],
+        "Semester 4 (FA24)": ["Computer Architecture","Software Engineering","Linear Algebra","Web Programming","Analysis of Algorithms","Problem Solving II","Computer Construction","Introduction to History & Society"],
+        "Semester 5 (SP24)": ["Mobile Application Development","Human Computer Interaction & Graphics","Theory of Automata & Formal Languages","Operating Systems","Group Project","Technical & Business Writing"],
+        "Semester 6 (FA23)": ["Cloud Computing","Artificial Intelligence","Advanced Database Management Systems","Computer Networks","Computer Construction"]
+    },
+    "BSSE": {
+        "Semester 2 (FA25)": ["Digital Logic Design","Object-Oriented Programming","Pre-Calculus II","Expository Writing","Probability & Statistics","Calculus & Analytic Geometry","Understanding Quran II","Islamic Studies"],
+        "Semester 4 (FA24)": ["Analysis of Algorithms","Software Requirements Engineering","Web Programming","Linear Algebra","Computer Organization & Assembly Language","Problem Solving II","Introduction to History & Society"],
+        "Semester 5 (SP24)": ["Mobile Application Development","Parallel & Distributed Computing","Operating Systems","Software Construction & Development","Group Project","Technical & Business Writing"],
+        "Semester 6 (FA23)": ["Software Quality Engineering","Software Construction & Configuration Management","Software Design & Architecture","Computer Networks","Artificial Intelligence"]
+    },
+    "BSIT": {
+        "Semester 2 (FA25)": ["Digital Logic Design","Object-Oriented Programming","Pre-Calculus II","Expository Writing","Probability & Statistics","Calculus & Analytic Geometry","Understanding Quran II","Islamic Studies"],
+        "Semester 4 (FA24)": ["Database Systems","Web Programming","Information Security","Operating Systems","Problem Solving II","Introduction to History & Society"]
+    },
+    "BSAI": {
+        "Semester 2 (FA25)": ["Digital Logic Design","Object-Oriented Programming","Pre-Calculus II","Expository Writing","Probability & Statistics","Calculus & Analytic Geometry","Islamic Studies"],
+        "Semester 4 (FA24)": ["Database Systems","Analysis of Algorithms","Linear Algebra","Machine Learning","Problem Solving II","Introduction to History & Society"]
+    },
+    "BSGV": {
+        "Semester 2 (FA25)": ["Object-Oriented Programming","Expository Writing","Calculus & Analytic Geometry","Discrete Structures","Understanding Quran II","Islamic Studies"],
+        "Semester 4 (FA24)": ["Database Systems","Computer Graphics","3D Modeling & Animation","Problem Solving II","Introduction to History & Society","Technical & Business Writing"]
+    },
+    "BSEng": {
+        "Semester 2 (FA25)": ["Expository Writing","Introduction to Linguistics","Text & Quantitative Reasoning","Environmental Sciences","Understanding Quran II","Pak Studies"],
+        "Semester 4 (FA24)": ["Phonetics & Phonology","Romantic Poetry","Semantics & Pragmatics","Morphology & Syntax","Family Life","Classical Drama"],
+        "Semester 6 (FA23)": ["Second Language Acquisition","Diaspora Studies","Mass Communication & Print Media","Sociolinguistics","Practical Life in English","Research Methods","Entrepreneurship"]
+    },
+    "BBA": {
+        "Semester 1 (SP26)": ["Functional English","Everyday Science","Business Math & Statistics","Principles of Microeconomics","Applications of ICT","Understanding Quran I"],
+        "Semester 2 (FA25)": ["FA&R I","Human Psychology & Philosophy","Logic & Critical Thinking","Pak Economic & Constitutional Environment","Principles of Macroeconomics","Expository Writing","Understanding Quran II"],
+        "Semester 3 (SP25)": ["FA&R II","Principles of Marketing","Principles of Management","Entrepreneurship","Pakistan Economy","Ideology & Constitution of Pakistan"],
+        "Semester 4 (FA24)": ["Business Finance","Business & Corporate Law","Cost Accounting","HRM","Pakistan Economy","Pak Studies"],
+        "Semester 6 (FA23)": ["CSR & Ethics in Management","Business Taxation","Leadership & Management I","Information Systems & Business Analytics","Research Methods"]
+    },
+    "DPT": {
+        "Semester 1 (SP26)": ["Anatomy I","Physiology I","Kinesiology I","Cell Biology","Human Psychology","Functional English","Understanding Quran I"],
+        "Semester 2 (FA25)": ["Anatomy II","Physiology II","Kinesiology II","Quran Recitation I","Expository Writing","Islamic Studies"],
+        "Semester 3 (SP25)": ["Anatomy III","Physiology III","Bioethics & Evidence I","Quran Recitation II","Principles of Biochemistry","Therapeutic Modalities & Orthopaedic Surgery"],
+        "Semester 4 (FA24)": ["Anatomy IV","Bioethics & Evidence II","Biochemistry II","Quran Recitation II","Health & Wellness","Microbiology & Genetics","Intro to Basic Translation of Quran"]
+    },
+    "PharmD": {
+        "Semester 2 (FA25)": ["Organic Chemistry II","Physiology II","Anatomy & Histology","Physical Pharmacy II","Biochemistry II","Islamic Studies"],
+        "Semester 4 (FA24)": ["Dosage Form Sciences","Microbiology","Pharmacognosy I","Pharmacology & Therapeutics I","Biostatistics","Pharmaceutical Sciences"],
+        "Semester 6 (FA23)": ["Pharmacy Practice II","Pharmacology & Therapeutics II","Pharmaceutical Analysis","Pharmacognosy II","Understanding Quran II","Pharmacy Practice III"]
+    },
+    "BSN": {
+        "Semester 2 (FA25)": ["Anatomy & Physiology II","Applied Nutrition","Fundamentals of Nursing II","Theoretical Basis of Nursing","Islamic Studies","QR-I","Understanding Quran II","Intro to Basic Translation of Quran"]
+    },
+    "MLT": {
+        "Semester 2 (FA25)": ["Physiology I","Expository Writing","QR-I","Understanding Quran II","Pak Studies"],
+        "Semester 4 (FA24)": ["General Microbiology","Histology & Cytology I","Haematology I","Immunology & Serology","Medical Instrumentation","Biochemistry II"]
+    },
+    "HND": {
+        "Semester 2 (FA25)": ["Human Anatomy","Human Physiology","QR-II","Expository Writing","Understanding Quran II","Pak Studies"],
+        "Semester 4 (FA24)": ["Anatomy of Nervous System","Nutrition Transition through Life Cycle","Menu Planning & Management","Food & Drug Law","General Pathology"]
+    },
+    "FST": {
+        "Semester 2 (FA25)": ["Food & Human Nutrition","Cell Biology","QR-II","Expository Writing","Understanding Quran II","Pak Studies"],
+        "Semester 4 (FA24)": ["Food Analysis & Vegetable Processing","Food Safety & Quality Management","Dairy Technology","Bakery & Pastry Technology","Post-Harvest Losses & Drying"]
+    }
+}
+
 
 # ── DATABASE ──────────────────────────────────────────────────────────────────
 def get_db():
@@ -46,8 +113,9 @@ CREATE TABLE IF NOT EXISTS users (
     email         TEXT    NOT NULL UNIQUE,
     password_hash TEXT    NOT NULL,
     campus        TEXT    DEFAULT 'Riphah International University',
-    program       TEXT    DEFAULT 'BSSE-FA''25',
-    semester      TEXT    DEFAULT 'Second',
+    department    TEXT    DEFAULT '',
+    program       TEXT    DEFAULT '',
+    semester      TEXT    DEFAULT '',
     subjects      TEXT    DEFAULT '[]',
     days          TEXT    DEFAULT '[]',
     times         TEXT    DEFAULT '[]',
@@ -93,6 +161,11 @@ CREATE INDEX IF NOT EXISTS idx_msg_r ON messages(receiver_id);
 CREATE INDEX IF NOT EXISTS idx_ses_u ON study_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_req_r ON study_requests(receiver_id, status);
     """)
+
+    # ── MIGRATE: add department column to existing DBs ────────────────────────
+    cols = [row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()]
+    if 'department' not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN department TEXT DEFAULT ''")
     conn.commit()
     conn.close()
 
@@ -139,6 +212,21 @@ def fmt_user(row):
 
 # ── MATCHING ALGORITHM ────────────────────────────────────────────────────────
 def calc_score(me, them):
+    """
+    Returns (score, blocked_reason).
+    score=0 and blocked_reason set → gated out.
+    """
+    me_dept = (me['department'] or '').strip()
+    th_dept = (them['department'] or '').strip()
+    me_sem  = (me['semester'] or '').strip()
+    th_sem  = (them['semester'] or '').strip()
+
+    # Gate: must share same department AND same semester
+    if me_dept and th_dept and me_dept != th_dept:
+        return 0, 'different_department'
+    if me_sem and th_sem and me_sem != th_sem:
+        return 0, 'different_semester'
+
     def parse(x):
         try:
             return set(x if isinstance(x, list) else json.loads(x or '[]'))
@@ -162,7 +250,7 @@ def calc_score(me, them):
     if me.get('style') == them.get('style'):
         score += 20
 
-    return round(min(score, 99))
+    return round(min(score, 99)), None
 
 
 # ── SERVE FRONTEND ────────────────────────────────────────────────────────────
@@ -219,14 +307,15 @@ def update_profile():
     d = request.json or {}
     get_db().execute('''
         UPDATE users
-        SET name=?, campus=?, program=?, semester=?,
+        SET name=?, campus=?, department=?, program=?, semester=?,
             subjects=?, days=?, times=?, style=?, note=?, profile_done=1
         WHERE id=?
     ''', (
         d.get('name'),
         d.get('campus', 'Riphah International University'),
-        d.get('program', "BSSE-FA'25"),
-        d.get('semester', 'Second'),
+        d.get('department', ''),
+        d.get('program', ''),
+        d.get('semester', ''),
         json.dumps(d.get('subjects', [])),
         json.dumps(d.get('days', [])),
         json.dumps(d.get('times', [])),
@@ -239,6 +328,13 @@ def update_profile():
     return jsonify(fmt_user(user))
 
 
+# ── DEPT/SUBJECTS API ─────────────────────────────────────────────────────────
+@app.route('/api/departments')
+def get_departments():
+    """Return full department → semester → subjects map."""
+    return jsonify(DEPT_SUBJECTS)
+
+
 # ── MATCHES ───────────────────────────────────────────────────────────────────
 @app.route('/api/matches')
 @require_auth
@@ -247,14 +343,30 @@ def get_matches():
     others = q('SELECT * FROM users WHERE id!=? AND profile_done=1', (g.uid,))
     results = []
     for u in others:
-        sc = calc_score(me_row, u)
+        sc, reason = calc_score(me_row, u)
         if sc > 0:
             ud = fmt_user(u)
-            ud['score'] = sc
-            ud['cms']   = u['program']
+            ud['score']  = sc
+            ud['cms']    = u['program']
             results.append(ud)
     results.sort(key=lambda x: x['score'], reverse=True)
     return jsonify(results[:10])
+
+
+# ── CHECK IF CONNECT IS ALLOWED ───────────────────────────────────────────────
+@app.route('/api/can-connect/<int:other_id>')
+@require_auth
+def can_connect(other_id):
+    me_row    = q('SELECT * FROM users WHERE id=?', (g.uid,), one=True)
+    other_row = q('SELECT * FROM users WHERE id=?', (other_id,), one=True)
+    if not other_row:
+        return jsonify(allowed=False, reason='User not found'), 404
+    sc, reason = calc_score(me_row, other_row)
+    if reason == 'different_department':
+        return jsonify(allowed=False, reason='You are in different departments.')
+    if reason == 'different_semester':
+        return jsonify(allowed=False, reason='You are in different semesters.')
+    return jsonify(allowed=True)
 
 
 # ── CONVERSATIONS ─────────────────────────────────────────────────────────────
@@ -265,8 +377,9 @@ def conversations():
     rows = q('''
         SELECT m.*,
             CASE WHEN m.sender_id=? THEN m.receiver_id ELSE m.sender_id END AS contact_id,
-            u2.name    AS contact_name,
-            u2.program AS contact_program
+            u2.name       AS contact_name,
+            u2.department AS contact_department,
+            u2.program    AS contact_program
         FROM messages m
         JOIN users u2 ON u2.id =
             CASE WHEN m.sender_id=? THEN m.receiver_id ELSE m.sender_id END
@@ -311,6 +424,17 @@ def send_message():
     txt = (d.get('text') or '').strip()
     if not rid or not txt:
         return jsonify(error='receiver_id and text required'), 400
+
+    # Gate: check department + semester before allowing message
+    me_row    = q('SELECT * FROM users WHERE id=?', (g.uid,), one=True)
+    other_row = q('SELECT * FROM users WHERE id=?', (rid,), one=True)
+    if me_row and other_row and me_row['profile_done'] and other_row['profile_done']:
+        _, reason = calc_score(me_row, other_row)
+        if reason == 'different_department':
+            return jsonify(error='You can only message students in your department.'), 403
+        if reason == 'different_semester':
+            return jsonify(error='You can only message students in your semester.'), 403
+
     db = get_db()
     db.execute('INSERT INTO messages (sender_id,receiver_id,text) VALUES (?,?,?)',
                (g.uid, rid, txt))
@@ -408,10 +532,10 @@ def update_request(rid):
 # ── STATS ─────────────────────────────────────────────────────────────────────
 @app.route('/api/stats')
 def stats():
-    students    = q('SELECT COUNT(*) AS c FROM users', one=True)['c']
-    profiled    = q('SELECT COUNT(*) AS c FROM users WHERE profile_done=1', one=True)['c']
-    sessions_n  = q('SELECT COUNT(*) AS c FROM study_sessions', one=True)['c']
-    matches_n   = q("""
+    students   = q('SELECT COUNT(*) AS c FROM users', one=True)['c']
+    profiled   = q('SELECT COUNT(*) AS c FROM users WHERE profile_done=1', one=True)['c']
+    sessions_n = q('SELECT COUNT(*) AS c FROM study_sessions', one=True)['c']
+    matches_n  = q("""
         SELECT COUNT(DISTINCT
             CASE WHEN sender_id < receiver_id
                  THEN sender_id || '_' || receiver_id
@@ -429,7 +553,7 @@ def stats():
 @app.route('/api/users')
 @require_auth
 def list_users():
-    rows = q('SELECT id, name, program, semester FROM users WHERE id!=?', (g.uid,))
+    rows = q('SELECT id, name, department, program, semester FROM users WHERE id!=?', (g.uid,))
     return jsonify([dict(r) for r in rows])
 
 
@@ -437,7 +561,9 @@ def list_users():
 if __name__ == '__main__':
     init_db()
     print('\n' + '='*50)
-    print("  StudyBuddy — Riphah BSSE-FA'25")
+    print("  StudyBuddy — Riphah International University")
     print('  Running at  →  http://localhost:5000')
     print('='*50 + '\n')
     app.run(debug=True, port=5000)
+PYEOF
+echo "app.py written"

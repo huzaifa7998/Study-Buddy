@@ -15,23 +15,23 @@ AV_CYCLE = ['av1', 'av2', 'av3', 'av4', 'av5']
 # ── DEPARTMENT → SEMESTER → SUBJECTS MAP ─────────────────────────────────────
 DEPT_SUBJECTS = {
     "BSCS": {
-        "Semester 2 (FA25)": ["Digital Logic Design","Object-Oriented Programming","Pre-Calculus II","Expository Writing","Probability & Statistics","Calculus & Analytic Geometry","Understanding Q"],
-        "Semester 4 (FA24)": ["Computer Architecture","Software Engineering","Linear Algebra","Web Programming","Analysis of Algorithms","Problem Solving II","Computer Construction","Introduction "],
-        "Semester 5 (SP24)": ["Mobile Application Development","Human Computer Interaction & Graphics","Theory of Automata & Formal Languages","Operating Systems","Group Project","Technical & Busi"],
+        "Semester 2 (FA25)": ["Digital Logic Design","Object-Oriented Programming","Pre-Calculus II","Expository Writing","Probability & Statistics","Calculus & Analytic Geometry","Understanding Quran II","Islamic Studies"],
+        "Semester 4 (FA24)": ["Computer Architecture","Software Engineering","Linear Algebra","Web Programming","Analysis of Algorithms","Problem Solving II","Computer Construction","Introduction to History & Society"],
+        "Semester 5 (SP24)": ["Mobile Application Development","Human Computer Interaction & Graphics","Theory of Automata & Formal Languages","Operating Systems","Group Project","Technical & Business Writing"],
         "Semester 6 (FA23)": ["Cloud Computing","Artificial Intelligence","Advanced Database Management Systems","Computer Networks","Computer Construction"]
     },
     "BSSE": {
-        "Semester 2 (FA25)": ["Digital Logic Design","Object-Oriented Programming","Pre-Calculus II","Expository Writing","Probability & Statistics","Calculus & Analytic Geometry","Understanding Q"],
-        "Semester 4 (FA24)": ["Analysis of Algorithms","Software Requirements Engineering","Web Programming","Linear Algebra","Computer Organization & Assembly Language","Problem Solving II","Intr"],
-        "Semester 5 (SP24)": ["Mobile Application Development","Parallel & Distributed Computing","Operating Systems","Software Construction & Development","Group Project","Technical & Business Wr"],
+        "Semester 2 (FA25)": ["Digital Logic Design","Object-Oriented Programming","Pre-Calculus II","Expository Writing","Probability & Statistics","Calculus & Analytic Geometry","Understanding Quran II","Islamic Studies"],
+        "Semester 4 (FA24)": ["Analysis of Algorithms","Software Requirements Engineering","Web Programming","Linear Algebra","Computer Organization & Assembly Language","Problem Solving II","Introduction to History & Society"],
+        "Semester 5 (SP24)": ["Mobile Application Development","Parallel & Distributed Computing","Operating Systems","Software Construction & Development","Group Project","Technical & Business Writing"],
         "Semester 6 (FA23)": ["Software Quality Engineering","Software Construction & Configuration Management","Software Design & Architecture","Computer Networks","Artificial Intelligence"]
     },
     "BSIT": {
-        "Semester 2 (FA25)": ["Digital Logic Design","Object-Oriented Programming","Pre-Calculus II","Expository Writing","Probability & Statistics","Calculus & Analytic Geometry","Understanding Q"],
+        "Semester 2 (FA25)": ["Digital Logic Design","Object-Oriented Programming","Pre-Calculus II","Expository Writing","Probability & Statistics","Calculus & Analytic Geometry","Understanding Quran II","Islamic Studies"],
         "Semester 4 (FA24)": ["Database Systems","Web Programming","Information Security","Operating Systems","Problem Solving II","Introduction to History & Society"]
     },
     "BSAI": {
-        "Semester 2 (FA25)": ["Digital Logic Design","Object-Oriented Programming","Pre-Calculus II","Expository Writing","Probability & Statistics","Calculus & Analytic Geometry","Islamic Studies"],
+        "Semester 2 (FA25)": ["Digital Logic Design","Object-Oriented Programming","Pre-Calculus II","Expository Writing","Probability & Statistics","Calculus & Analytic Geometry","Islamic Studies","Understanding Quran II"],
         "Semester 4 (FA24)": ["Database Systems","Analysis of Algorithms","Linear Algebra","Machine Learning","Problem Solving II","Introduction to History & Society"]
     },
     "BSGV": {
@@ -41,7 +41,7 @@ DEPT_SUBJECTS = {
     "BSEng": {
         "Semester 2 (FA25)": ["Expository Writing","Introduction to Linguistics","Text & Quantitative Reasoning","Environmental Sciences","Understanding Quran II","Pak Studies"],
         "Semester 4 (FA24)": ["Phonetics & Phonology","Romantic Poetry","Semantics & Pragmatics","Morphology & Syntax","Family Life","Classical Drama"],
-        "Semester 6 (FA23)": ["Second Language Acquisition","Diaspora Studies","Mass Communication & Print Media","Sociolinguistics","Practical Life in English","Research Methods","Entrepreneurshi"]
+        "Semester 6 (FA23)": ["Second Language Acquisition","Diaspora Studies","Mass Communication & Print Media","Sociolinguistics","Practical Life in English","Research Methods","Entrepreneurship"]
     },
     "BBA": {
         "Semester 1 (SP26)": ["Functional English","Everyday Science","Business Math & Statistics","Principles of Microeconomics","Applications of ICT","Understanding Quran I"],
@@ -62,7 +62,7 @@ DEPT_SUBJECTS = {
         "Semester 6 (FA23)": ["Pharmacy Practice II","Pharmacology & Therapeutics II","Pharmaceutical Analysis","Pharmacognosy II","Understanding Quran II","Pharmacy Practice III"]
     },
     "BSN": {
-        "Semester 2 (FA25)": ["Anatomy & Physiology II","Applied Nutrition","Fundamentals of Nursing II","Theoretical Basis of Nursing","Islamic Studies","QR-I","Understanding Quran II","Intro to "]
+        "Semester 2 (FA25)": ["Anatomy & Physiology II","Applied Nutrition","Fundamentals of Nursing II","Theoretical Basis of Nursing","Islamic Studies","QR-I","Understanding Quran II","Introduction to Nursing"]
     },
     "MLT": {
         "Semester 2 (FA25)": ["Physiology I","Expository Writing","QR-I","Understanding Quran II","Pak Studies"],
@@ -95,7 +95,8 @@ def close_db(e=None):
 def q(sql, args=(), one=False):
     cur = get_db().execute(sql, args)
     rows = cur.fetchall()
-    return (rows[0] if rows else None) if one else rows
+    rv = [dict(row) for row in rows]
+    return (rv[0] if rv else None) if one else rv
 
 def run(sql, args=()):
     db = get_db()
@@ -170,7 +171,7 @@ CREATE INDEX IF NOT EXISTS idx_req_r ON study_requests(receiver_id, status);
     conn.close()
 
 
-# ── AUTH HELPERS ────────────────────────────────────────────────────────────
+# ── AUTH HELPERS ─────────────────────────────────────────────────────────
 def hash_pw(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
@@ -196,7 +197,7 @@ def require_auth(f):
     return wrapper
 
 def fmt_user(row):
-    d = dict(row)
+    d = dict(row) if not isinstance(row, dict) else row
     for field in ('subjects', 'days', 'times'):
         v = d.get(field)
         try:
@@ -219,10 +220,10 @@ def calc_score(me, them):
     SYMMETRIC ALGORITHM: Calculates match score from BOTH perspectives
     and averages them for a fair, bidirectional score.
     """
-    me_dept = (me['department'] or '').strip()
-    th_dept = (them['department'] or '').strip()
-    me_sem  = (me['semester'] or '').strip()
-    th_sem  = (them['semester'] or '').strip()
+    me_dept = (me.get('department') or '').strip()
+    th_dept = (them.get('department') or '').strip()
+    me_sem  = (me.get('semester') or '').strip()
+    th_sem  = (them.get('semester') or '').strip()
 
     # Gate: must share same department AND same semester
     if me_dept and th_dept and me_dept != th_dept:
@@ -238,16 +239,16 @@ def calc_score(me, them):
 
     def calc_directional_score(user1, user2):
         """Calculate score from user1's perspective toward user2."""
-        s1, s2 = parse(user1['subjects']), parse(user2['subjects'])
+        s1, s2 = parse(user1.get('subjects')), parse(user2.get('subjects'))
         shared_s = s1 & s2
         score = (len(shared_s) / len(s1)) * 50 if shared_s and s1 else 0
 
-        d1, d2 = parse(user1['days']), parse(user2['days'])
+        d1, d2 = parse(user1.get('days')), parse(user2.get('days'))
         shared_d = d1 & d2
         if shared_d and d1:
             score += (len(shared_d) / len(d1)) * 15
 
-        t1, t2 = parse(user1['times']), parse(user2['times'])
+        t1, t2 = parse(user1.get('times')), parse(user2.get('times'))
         shared_t = t1 & t2
         if shared_t and t1:
             score += (len(shared_t) / len(t1)) * 15
@@ -267,7 +268,7 @@ def calc_score(me, them):
     return round(min(final_score, 99)), None
 
 
-# ── SERVE FRONTEND ──────────────────────────────────────────────────────────
+# ── SERVE FRONTEND ─────────────────────────────────────────────────────────
 @app.route('/')
 def index():
     return send_from_directory('.', 'index.html')
@@ -361,7 +362,7 @@ def get_matches():
         if sc > 0:
             ud = fmt_user(u)
             ud['score']  = sc
-            ud['cms']    = u['program']
+            ud['cms']    = u.get('program', '')
             results.append(ud)
     results.sort(key=lambda x: x['score'], reverse=True)
     return jsonify(results[:10])
@@ -383,7 +384,7 @@ def can_connect(other_id):
     return jsonify(allowed=True)
 
 
-# ── CONVERSATIONS ───────────────────────────────────────────────────────────
+# ── CONVERSATIONS ─────────────────────────────────────────────────────────
 @app.route('/api/conversations')
 @require_auth
 def conversations():
@@ -404,10 +405,10 @@ def conversations():
         )
         ORDER BY m.created_at DESC
     ''', (uid, uid, uid, uid, uid))
-    return jsonify([dict(r) for r in rows])
+    return jsonify(rows)
 
 
-# ── MESSAGES ────────────────────────────────────────────────────────────
+# ── MESSAGES ───────────────────────────────────────────────────────────
 @app.route('/api/messages')
 @require_auth
 def get_messages():
@@ -427,7 +428,7 @@ def get_messages():
         WHERE receiver_id=? AND sender_id=? AND read_at IS NULL
     ''', (g.uid, other))
     get_db().commit()
-    return jsonify([dict(r) for r in rows])
+    return jsonify(rows)
 
 
 @app.route('/api/messages', methods=['POST'])
@@ -442,7 +443,7 @@ def send_message():
     # Gate: check department + semester before allowing message
     me_row    = q('SELECT * FROM users WHERE id=?', (g.uid,), one=True)
     other_row = q('SELECT * FROM users WHERE id=?', (rid,), one=True)
-    if me_row and other_row and me_row['profile_done'] and other_row['profile_done']:
+    if me_row and other_row and me_row.get('profile_done') and other_row.get('profile_done'):
         _, reason = calc_score(me_row, other_row)
         if reason == 'different_department':
             return jsonify(error='You can only message students in your department.'), 403
@@ -454,7 +455,7 @@ def send_message():
                (g.uid, rid, txt))
     db.commit()
     row = q('SELECT * FROM messages WHERE rowid=last_insert_rowid()', one=True)
-    return jsonify(dict(row)), 201
+    return jsonify(row), 201
 
 
 @app.route('/api/messages/unread')
@@ -465,7 +466,7 @@ def unread():
     return jsonify(count=row['c'])
 
 
-# ── SESSIONS ────────────────────────────────────────────────────────────
+# ── SESSIONS ───────────────────────────────────────────────────────────
 @app.route('/api/sessions')
 @require_auth
 def get_sessions():
@@ -476,7 +477,7 @@ def get_sessions():
         WHERE s.user_id=?
         ORDER BY s.date DESC, s.created_at DESC
     ''', (g.uid,))
-    return jsonify([dict(r) for r in rows])
+    return jsonify(rows)
 
 
 @app.route('/api/sessions', methods=['POST'])
@@ -502,7 +503,7 @@ def del_session(sid):
     return jsonify(success=True)
 
 
-# ── STUDY REQUESTS ───────────────────────────────────────────────────────────
+# ── STUDY REQUESTS ─────────────────────────────────────────────────────────
 @app.route('/api/requests', methods=['POST'])
 @require_auth
 def send_request():
@@ -528,8 +529,8 @@ def get_requests():
         WHERE r.sender_id=?
         ORDER BY r.created_at DESC
     ''', (g.uid,))
-    return jsonify(incoming=[dict(r) for r in incoming],
-                   outgoing=[dict(r) for r in outgoing])
+    return jsonify(incoming=incoming,
+                   outgoing=outgoing)
 
 
 @app.route('/api/requests/<int:rid>', methods=['PUT'])
@@ -568,7 +569,7 @@ def stats():
 @require_auth
 def list_users():
     rows = q('SELECT id, name, department, program, semester FROM users WHERE id!=?', (g.uid,))
-    return jsonify([dict(r) for r in rows])
+    return jsonify(rows)
 
 
 # ── ENTRY POINT ──────────────────────────────────────────────────────────
@@ -578,4 +579,4 @@ if __name__ == '__main__':
     print("  StudyBuddy — Riphah International University")
     print('  Running at  →  http://localhost:5000')
     print('='*50 + '\n')
-    app.run(debug=True, port=8000)
+    app.run(debug=False, port=5000)

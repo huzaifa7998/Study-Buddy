@@ -215,18 +215,11 @@ def fmt_user(row):
 
 # ── MATCHING ALGORITHM ────────────────────────────────────────────────────────
 def calc_score(me, them):
-    """
-    Returns (score, blocked_reason).
-    score=0 and blocked_reason set → gated out.
-
-    Uses .get() safely since both me and them are plain dicts from q().
-    """
     me_dept = (me.get('department') or '').strip()
     th_dept = (them.get('department') or '').strip()
     me_sem  = (me.get('semester') or '').strip()
     th_sem  = (them.get('semester') or '').strip()
 
-    # Gate: must share same department AND same semester
     if me_dept and th_dept and me_dept != th_dept:
         return 0, 'different_department'
     if me_sem and th_sem and me_sem != th_sem:
@@ -240,22 +233,31 @@ def calc_score(me, them):
 
     s1, s2   = parse(me.get('subjects')), parse(them.get('subjects'))
     shared_s = s1 & s2
-    score    = (len(shared_s) / len(s1)) * 50 if shared_s and s1 else 0
+    sub_score = 0
+    if shared_s:
+        from_me   = (len(shared_s) / len(s1)) * 50 if s1 else 0
+        from_them = (len(shared_s) / len(s2)) * 50 if s2 else 0
+        sub_score = (from_me + from_them) / 2
 
     d1, d2   = parse(me.get('days')), parse(them.get('days'))
     shared_d = d1 & d2
-    if shared_d and d1:
-        score += (len(shared_d) / len(d1)) * 15
+    day_score = 0
+    if shared_d:
+        from_me   = (len(shared_d) / len(d1)) * 15 if d1 else 0
+        from_them = (len(shared_d) / len(d2)) * 15 if d2 else 0
+        day_score = (from_me + from_them) / 2
 
     t1, t2   = parse(me.get('times')), parse(them.get('times'))
     shared_t = t1 & t2
-    if shared_t and t1:
-        score += (len(shared_t) / len(t1)) * 15
+    time_score = 0
+    if shared_t:
+        from_me   = (len(shared_t) / len(t1)) * 15 if t1 else 0
+        from_them = (len(shared_t) / len(t2)) * 15 if t2 else 0
+        time_score = (from_me + from_them) / 2
 
-    if me.get('style') == them.get('style'):
-        score += 20
+    style_score = 20 if me.get('style') == them.get('style') else 0
 
-    return round(min(score, 99)), None
+    return round(min(sub_score + day_score + time_score + style_score, 99)), None
 
 
 # ── SERVE FRONTEND ────────────────────────────────────────────────────────────

@@ -905,9 +905,23 @@ function setStep(n){
 }
 
 document.getElementById('s1next').addEventListener('click', () => {
-  if (!document.getElementById('fname').value.trim()){ toast('Please enter your name','warn'); return; }
-  if (!document.getElementById('fdept').value){ toast('Please select your department','warn'); return; }
-  if (!document.getElementById('fsem').value){ toast('Please select your semester','warn'); return; }
+  const dept = document.getElementById('fdept').value;
+
+  if (!document.getElementById('fname').value.trim()){
+    toast('Please enter your name','warn');
+    return;
+  }
+
+  if (!dept){
+    toast('Please select your department','warn');
+    return;
+  }
+
+  if (dept !== 'BSMATH' && !document.getElementById('fsem').value){
+    toast('Please select your semester','warn');
+    return;
+  }
+
   setStep(2);
 });
 document.getElementById('s2back').addEventListener('click', () => setStep(1));
@@ -932,7 +946,10 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     campus:     document.getElementById('fcampus').value.trim(),
     department: document.getElementById('fdept').value,
     program:    document.getElementById('fprog').value.trim(),
-    semester:   document.getElementById('fsem').value,
+    semester:
+  document.getElementById('fdept').value === 'BSMATH'
+    ? '__all__'
+    : document.getElementById('fsem').value,
     subjects, days, times,
     style: document.querySelector('input[name="sty"]:checked')?.value || 'solo',
     note:  document.getElementById('fnote').value.trim()

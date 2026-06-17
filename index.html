@@ -417,6 +417,7 @@ footer strong{background:linear-gradient(90deg,var(--blue),var(--slate));-webkit
                 <option value="MLT">MLT — Medical Lab Technology</option>
                 <option value="HND">HND — Health &amp; Nutrition Dietetics</option>
                 <option value="FST">FST — Food Science &amp; Technology</option>
+                <option value="BSMATH">BSMATH — Mathematics with Data Analytics</option>
               </select>
             </div>
             <div class="fg">
@@ -739,7 +740,10 @@ function getSemesters(dept){
 }
 
 function getSubjects(dept, sem){
-  if (!dept || !sem || !DEPT_MAP[dept] || !DEPT_MAP[dept][sem]) return [];
+  if (!dept || !DEPT_MAP[dept]) return [];
+  // Semester-independent departments store subjects under __all__
+  if (DEPT_MAP[dept]['__all__']) return DEPT_MAP[dept]['__all__'];
+  if (!sem || !DEPT_MAP[dept][sem]) return [];
   return DEPT_MAP[dept][sem];
 }
 
@@ -757,7 +761,9 @@ function populateSemesterDropdown(dept, selectedSem){
 function populateSubjectPills(dept, sem){
   const wrap = document.getElementById('subjPills');
   wrap.innerHTML = '';
-  const subjects = getSubjects(dept, sem);
+  const isAll = sem === '__all__' || (dept && DEPT_MAP[dept]?.['__all__']);
+  const subjects = isAll ? (DEPT_MAP[dept]?.['__all__'] || []) : getSubjects(dept, sem);
+  // ... rest stays the same
   if (!subjects.length){
     wrap.innerHTML = '<span style="color:var(--text-faint);font-size:.82rem">Select department &amp; semester to load subjects</span>';
     document.getElementById('subjHint').textContent = '';
@@ -790,10 +796,35 @@ function updateLogSubjectDropdown(){
 
 document.getElementById('fdept').addEventListener('change', function(){
   const dept = this.value;
-  const semKey = semesterCodeFromDept(dept);
-  populateSemesterDropdown(dept, '');
-  populateSubjectPills('', '');
-  document.getElementById('fprog').value = dept ? dept+'-'+semKey : '';
+  const semRow = document.getElementById('fsem').closest('.fg');
+  const semIndep = dept === 'BSMATH'; // extend this if you add more later
+
+  if (semIndep) {
+    semRow.style.display = 'none';
+    document.getElementById('fsem').value = '';
+    // Show a small note — reuse the hint span or insert one
+    let note = document.getElementById('semIndepNote');
+    if (!note) {
+      note = document.createElement('p');
+      note.id = 'semIndepNote';
+      note.style.cssText = 'font-size:.8rem;color:var(--blue);margin-top:6px;padding:8px 12px;background:rgba(62,107,158,.08);border-radius:8px;border:1px solid rgba(62,107,158,.2)';
+      semRow.parentNode.insertBefore(note, semRow.nextSibling);
+    }
+    note.style.display = 'block';
+    note.textContent = 'ℹ️ This department is independent of semesters — no semester selection needed.';
+    populateSubjectPills(dept, '__all__');
+  } else {
+    semRow.style.display = '';
+    const note = document.getElementById('semIndepNote');
+    if (note) note.style.display = 'none';
+    const semKey = semesterCodeFromDept(dept);
+    populateSemesterDropdown(dept, '');
+    populateSubjectPills('', '');
+    document.getElementById('fprog').value = dept ? dept+'-'+semKey : '';
+  }
+  document.getElementById('fprog').value = dept && !semIndep
+    ? dept + '-' + semesterCodeFromDept(dept)
+    : dept || '';
 });
 
 document.getElementById('fsem').addEventListener('change', function(){

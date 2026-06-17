@@ -12,6 +12,9 @@ CORS(app)
 DB_FILE  = 'studybuddy.db'
 AV_CYCLE = ['av1', 'av2', 'av3', 'av4', 'av5']
 
+# Departments whose students are NOT filtered by semester — they match across all
+SEMESTER_INDEPENDENT_DEPTS = {'BSMATH'}
+
 # ── DEPARTMENT → SEMESTER → SUBJECTS MAP ─────────────────────────────────────
 DEPT_SUBJECTS = {
     "BSCS": {
@@ -75,6 +78,10 @@ DEPT_SUBJECTS = {
     "FST": {
         "Semester 2 (FA25)": ["Food & Human Nutrition","Cell Biology","QR-II","Expository Writing","Understanding Quran II","Pak Studies"],
         "Semester 4 (FA24)": ["Food Analysis & Vegetable Processing","Food Safety & Quality Management","Dairy Technology","Bakery & Pastry Technology","Post-Harvest Losses & Drying"]
+    },
+    # Semester-independent dept: single "__all__" key holds the flat subject list
+    "BSMATH": {
+        "__all__": ["Machine Learning","Data Science","Calculus & Analytic Geometry","Linear Algebra"]
     }
 }
 
@@ -92,7 +99,6 @@ def close_db(e=None):
     db = g.pop('db', None)
     if db: db.close()
 
-# ── THE KEY FIX: q() always returns plain dicts, never raw sqlite3.Row objects ──
 def q(sql, args=(), one=False):
     cur = get_db().execute(sql, args)
     rows = cur.fetchall()
@@ -164,7 +170,6 @@ CREATE INDEX IF NOT EXISTS idx_ses_u ON study_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_req_r ON study_requests(receiver_id, status);
     """)
 
-    # ── MIGRATE: add department column to existing DBs ────────────────────────
     cols = [row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()]
     if 'department' not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN department TEXT DEFAULT ''")
@@ -198,7 +203,6 @@ def require_auth(f):
     return wrapper
 
 def fmt_user(row):
-    # row is already a dict because q() converts everything
     d = dict(row) if not isinstance(row, dict) else row
     for field in ('subjects', 'days', 'times'):
         v = d.get(field)
@@ -220,10 +224,16 @@ def calc_score(me, them):
     me_sem  = (me.get('semester') or '').strip()
     th_sem  = (them.get('semester') or '').strip()
 
+    # Department must match (if both filled)
     if me_dept and th_dept and me_dept != th_dept:
         return 0, 'different_department'
-    if me_sem and th_sem and me_sem != th_sem:
-        return 0, 'different_semester'
+
+    # Semester check — skip if either party is in a semester-independent dept
+    me_indep = me_dept in SEMESTER_INDEPENDENT_DEPTS
+    th_indep = th_dept in SEMESTER_INDEPENDENT_DEPTS
+    if not me_indep and not th_indep:
+        if me_sem and th_sem and me_sem != th_sem:
+            return 0, 'different_semester'
 
     def parse(x):
         try:
@@ -338,7 +348,6 @@ def update_profile():
 # ── DEPT/SUBJECTS API ─────────────────────────────────────────────────────────
 @app.route('/api/departments')
 def get_departments():
-    """Return full department → semester → subjects map."""
     return jsonify(DEPT_SUBJECTS)
 
 
@@ -432,7 +441,6 @@ def send_message():
     if not rid or not txt:
         return jsonify(error='receiver_id and text required'), 400
 
-    # Gate: check department + semester before allowing message
     me_row    = q('SELECT * FROM users WHERE id=?', (g.uid,), one=True)
     other_row = q('SELECT * FROM users WHERE id=?', (rid,), one=True)
     if me_row and other_row and me_row.get('profile_done') and other_row.get('profile_done'):

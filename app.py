@@ -217,6 +217,34 @@ def fmt_user(row):
     return d
 
 
+# ── CONNECTION / REQUEST HELPERS ──────────────────────────────────────────────
+def are_connected(uid1, uid2):
+    """True if there is an accepted study_request between the two users (either direction)."""
+    row = q('''
+        SELECT id FROM study_requests
+        WHERE status='accepted'
+          AND ((sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?))
+        LIMIT 1
+    ''', (uid1, uid2, uid2, uid1), one=True)
+    return row is not None
+
+
+def request_status_between(uid1, uid2):
+    """From uid1's perspective: 'connected' | 'sent' | 'received' | 'none'."""
+    rows = q('''
+        SELECT sender_id, receiver_id, status FROM study_requests
+        WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)
+        ORDER BY created_at DESC
+    ''', (uid1, uid2, uid2, uid1))
+    for r in rows:
+        if r['status'] == 'accepted':
+            return 'connected'
+    for r in rows:
+        if r['status'] == 'pending':
+            return 'sent' if r['sender_id'] == uid1 else 'received'
+    return 'none'
+
+
 # ── MATCHING ALGORITHM ────────────────────────────────────────────────────────
 def calc_score(me, them):
     me_dept = (me.get('department') or '').strip()
@@ -364,6 +392,7 @@ def get_matches():
             ud = fmt_user(u)
             ud['score'] = sc
             ud['cms']   = u.get('program', '')
+            ud['request_status'] = request_status_between(g.uid, u['id'])
             results.append(ud)
     results.sort(key=lambda x: x['score'], reverse=True)
     return jsonify(results[:10])
@@ -441,6 +470,9 @@ def send_message():
     if not rid or not txt:
         return jsonify(error='receiver_id and text required'), 400
 
+    if not are_connected(g.uid, int(rid)):
+        return jsonify(error='You need to send a study request and have them accept it before you can chat.'), 403
+
     me_row    = q('SELECT * FROM users WHERE id=?', (g.uid,), one=True)
     other_row = q('SELECT * FROM users WHERE id=?', (rid,), one=True)
     if me_row and other_row and me_row.get('profile_done') and other_row.get('profile_done'):
@@ -508,8 +540,18 @@ def del_session(sid):
 @require_auth
 def send_request():
     d = request.json or {}
+    receiver_id = d.get('receiver_id')
+    if not receiver_id:
+        return jsonify(error='receiver_id required'), 400
+
+    status = request_status_between(g.uid, int(receiver_id))
+    if status == 'connected':
+        return jsonify(error='You are already connected with this student.'), 409
+    if status in ('sent', 'received'):
+        return jsonify(error='A request already exists between you and this student.'), 409
+
     run('INSERT INTO study_requests (sender_id,receiver_id,subject,proposed_datetime,message) VALUES (?,?,?,?,?)',
-        (g.uid, d.get('receiver_id'), d.get('subject', ''),
+        (g.uid, receiver_id, d.get('subject', ''),
          d.get('proposed_datetime', ''), d.get('message', '')))
     return jsonify(success=True), 201
 
@@ -520,7 +562,7 @@ def get_requests():
     incoming = q('''
         SELECT r.*, u.name AS sender_name FROM study_requests r
         JOIN users u ON u.id=r.sender_id
-        WHERE r.receiver_id=? AND r.status='pending'
+        WHERE r.receiver_id=?
         ORDER BY r.created_at DESC
     ''', (g.uid,))
     outgoing = q('''

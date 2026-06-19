@@ -318,6 +318,7 @@ footer strong{background:linear-gradient(90deg,var(--blue),var(--slate));-webkit
     <li><button class="tab-btn active" data-tab="home">Home</button></li>
     <li><button class="tab-btn" data-tab="profile">Profile</button></li>
     <li><button class="tab-btn" data-tab="matches">Matches <span class="nbadge" id="matchBadge">0</span></button></li>
+    <li><button class="tab-btn" data-tab="requests">Requests <span class="nbadge" id="reqBadge">0</span></button></li>
     <li><button class="tab-btn" data-tab="chat">Chat</button></li>
     <li><button class="tab-btn" data-tab="sessions">Sessions</button></li>
   </ul>
@@ -356,7 +357,7 @@ footer strong{background:linear-gradient(90deg,var(--blue),var(--slate));-webkit
     <div class="feat-grid">
       <div class="feat-card"><div class="fi fi-v">🎯</div><h3>Smart Profile</h3><p>Choose your department, semester, and exact subjects. We match you with people in the same class — not random strangers.</p></div>
       <div class="feat-card"><div class="fi fi-t">🧠</div><h3>Compatibility Score</h3><p>Our algorithm weighs shared subjects (50%), schedule overlap (30%), and study style (20%) for precision matches.</p></div>
-      <div class="feat-card"><div class="fi fi-m">🔒</div><h3>Department Gating</h3><p>You can only connect with students from your own department and semester — keeping matches relevant and focused.</p></div>
+      <div class="feat-card"><div class="fi fi-m">🔒</div><h3>Request &amp; Accept</h3><p>You can only chat once a study request is sent and accepted — keeping conversations consensual and relevant.</p></div>
       <div class="feat-card"><div class="fi fi-a">📊</div><h3>Session Tracker</h3><p>Log what you studied, rate productivity, and discover which partners and methods work best over time.</p></div>
     </div>
   </section>
@@ -482,6 +483,19 @@ footer strong{background:linear-gradient(90deg,var(--blue),var(--slate));-webkit
   </div>
 </div>
 
+<!-- REQUESTS -->
+<div class="view" id="view-requests">
+  <div class="matches-wrap">
+    <div class="mhdr">
+      <div><div class="lbl">Study Requests</div><h2 class="sec-h" style="margin-bottom:0">Incoming &amp; Sent</h2></div>
+    </div>
+    <h3 style="font-family:'Space Grotesk',sans-serif;font-weight:600;margin:4px 0 14px;color:var(--blue)">📥 Incoming</h3>
+    <div id="incomingReqList"></div>
+    <h3 style="font-family:'Space Grotesk',sans-serif;font-weight:600;margin:30px 0 14px;color:var(--blue)">📤 Sent by You</h3>
+    <div id="outgoingReqList"></div>
+  </div>
+</div>
+
 <!-- CHAT -->
 <div class="view" id="view-chat">
   <div class="chat-wrap">
@@ -553,6 +567,7 @@ let CURRENT_USER = null;
 let MATCHES = [];
 let CONTACTS = [];
 let sessions = [];
+let REQUESTS = {incoming:[], outgoing:[]};
 let currentContact = null;
 let currentMessages = [];
 let logRating = 4;
@@ -574,6 +589,7 @@ const POST = (p,b) => api(p, {method:'POST', body:JSON.stringify(b)});
 const PUT  = (p,b) => api(p, {method:'PUT',  body:JSON.stringify(b)});
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+function semLabel(s){ return s === '__all__' ? 'No need to choose semesters' : (s || ''); }
 
 function doLogout(){
   TOKEN=''; CURRENT_USER=null;
@@ -618,11 +634,15 @@ async function init(){
 
 async function bootApp(){
   document.getElementById('greetName').textContent = 'Hi, '+CURRENT_USER.name.split(' ')[0]+' 👋';
-  await Promise.all([loadStats(), loadMatches(), loadSessions()]);
+  await Promise.all([loadStats(), loadMatches(), loadSessions(), loadRequests()]);
   await loadContacts();
   prefillProfile();
-  renderMatches(); renderContactList(); renderSessions();
+  renderMatches(); renderContactList(); renderSessions(); renderRequests();
   setInterval(pollUnread, 10000);
+  setInterval(async () => {
+    await loadRequests();
+    if (document.getElementById('view-requests').classList.contains('active')) renderRequests();
+  }, 12000);
 }
 
 async function loadStats(){
@@ -638,11 +658,19 @@ async function loadMatches(){
   MATCHES = Array.isArray(d) ? d : [];
   document.getElementById('matchBadge').textContent = MATCHES.length;
   const logP = document.getElementById('logP');
-  if (MATCHES.length){
-    logP.innerHTML = MATCHES.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join('');
+  const connectedMatches = MATCHES.filter(m => m.request_status === 'connected');
+  if (connectedMatches.length){
+    logP.innerHTML = connectedMatches.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join('');
   } else {
-    logP.innerHTML = '<option value="">— Complete your profile first —</option>';
+    logP.innerHTML = '<option value="">— Connect with a buddy first —</option>';
   }
+}
+
+async function loadRequests(){
+  const d = await GET('/requests');
+  REQUESTS = (d && !d.error) ? d : {incoming:[], outgoing:[]};
+  const pendingIncoming = REQUESTS.incoming.filter(r => r.status === 'pending').length;
+  document.getElementById('reqBadge').textContent = pendingIncoming;
 }
 
 async function loadContacts(){
@@ -664,10 +692,11 @@ async function loadContacts(){
       });
     });
   }
-  MATCHES.slice(0,8).forEach(m => {
+  // Only students you're actually connected with (accepted request) show up as chat-ready contacts
+  MATCHES.filter(m => m.request_status === 'connected').forEach(m => {
     if (seen.has(m.id)) return;
     seen.add(m.id);
-    CONTACTS.push({db_id:m.id, name:m.name, av:m.avatar, ini:m.initials, preview:m.score+'% match — say hello!', unread:false});
+    CONTACTS.push({db_id:m.id, name:m.name, av:m.avatar, ini:m.initials, preview:'✅ Connected — say hello!', unread:false});
   });
 }
 
@@ -696,9 +725,10 @@ function goTab(name){
   document.querySelector('[data-tab="'+name+'"]').classList.add('active');
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-'+name).classList.add('active');
-  if (name==='matches')  renderMatches();
-  if (name==='chat')     { renderContactList(); renderMessages(); }
-  if (name==='sessions') renderSessions();
+  if (name==='matches')   renderMatches();
+  if (name==='requests')  { loadRequests().then(renderRequests); renderRequests(); }
+  if (name==='chat')      { renderContactList(); renderMessages(); }
+  if (name==='sessions')  renderSessions();
 }
 document.querySelectorAll('.tab-btn').forEach(btn =>
   btn.addEventListener('click', function(){ goTab(this.dataset.tab); })
@@ -747,10 +777,50 @@ function getSubjects(dept, sem){
   return DEPT_MAP[dept][sem];
 }
 
+function semesterCodeFromDept(dept){
+  const sems = getSemesters(dept).filter(s => s !== '__all__');
+  if (!sems.length) return '';
+  const match = sems[0].match(/\((.*?)\)/);
+  return match ? match[1] : '';
+}
+
+// Single source of truth for showing/hiding the semester dropdown and
+// populating subjects, used both when the dept <select> changes AND when
+// pre-filling an existing profile (fixes the "__all__" bug for BSMATH).
+function applyDeptSemesterUI(dept, sem){
+  const semSelect = document.getElementById('fsem');
+  const semRow = semSelect.closest('.fg');
+  const semIndep = dept && DEPT_MAP[dept] && DEPT_MAP[dept]['__all__'];
+
+  let note = document.getElementById('semIndepNote');
+  if (semIndep){
+    semRow.style.display = 'none';
+    semSelect.innerHTML = '<option value="__all__">No need to choose semesters</option>';
+    semSelect.value = '__all__';
+    if (!note){
+      note = document.createElement('p');
+      note.id = 'semIndepNote';
+      note.style.cssText = 'font-size:.8rem;color:var(--blue);margin-top:6px;padding:8px 12px;background:rgba(62,107,158,.08);border-radius:8px;border:1px solid rgba(62,107,158,.2)';
+      semRow.parentNode.insertBefore(note, semRow.nextSibling);
+    }
+    note.style.display = 'block';
+    note.textContent = 'ℹ️ This department is independent of semesters — no need to choose semesters.';
+    populateSubjectPills(dept, '__all__');
+    document.getElementById('fprog').value = dept;
+  } else {
+    semRow.style.display = '';
+    if (note) note.style.display = 'none';
+    populateSemesterDropdown(dept, sem || '');
+    populateSubjectPills(dept, sem || '');
+    const semKey = sem ? (sem.match(/\((.*?)\)/)?.[1] || '') : semesterCodeFromDept(dept);
+    document.getElementById('fprog').value = dept ? dept + (semKey ? '-'+semKey : '') : '';
+  }
+}
+
 function populateSemesterDropdown(dept, selectedSem){
   const sel = document.getElementById('fsem');
   sel.innerHTML = '<option value="">— Select Semester —</option>';
-  getSemesters(dept).forEach(s => {
+  getSemesters(dept).filter(s => s !== '__all__').forEach(s => {
     const opt = document.createElement('option');
     opt.value = s; opt.textContent = s;
     if (s === selectedSem) opt.selected = true;
@@ -761,15 +831,13 @@ function populateSemesterDropdown(dept, selectedSem){
 function populateSubjectPills(dept, sem){
   const wrap = document.getElementById('subjPills');
   wrap.innerHTML = '';
-  const isAll = sem === '__all__' || (dept && DEPT_MAP[dept]?.['__all__']);
-  const subjects = isAll ? (DEPT_MAP[dept]?.['__all__'] || []) : getSubjects(dept, sem);
-  // ... rest stays the same
+  const subjects = getSubjects(dept, sem);
   if (!subjects.length){
     wrap.innerHTML = '<span style="color:var(--text-faint);font-size:.82rem">Select department &amp; semester to load subjects</span>';
     document.getElementById('subjHint').textContent = '';
     return;
   }
-  document.getElementById('subjHint').textContent = '('+subjects.length+' subjects for this semester)';
+  document.getElementById('subjHint').textContent = '('+subjects.length+' subjects)';
   subjects.forEach(s => {
     const id = 'su_' + s.replace(/[^a-z0-9]/gi,'_');
     wrap.innerHTML += `<div class="pill"><input type="checkbox" id="${id}" value="${s}"><label for="${id}">${esc(s)}</label></div>`;
@@ -795,36 +863,7 @@ function updateLogSubjectDropdown(){
 }
 
 document.getElementById('fdept').addEventListener('change', function(){
-  const dept = this.value;
-  const semRow = document.getElementById('fsem').closest('.fg');
-  const semIndep = dept === 'BSMATH'; // extend this if you add more later
-
-  if (semIndep) {
-    semRow.style.display = 'none';
-    document.getElementById('fsem').value = '';
-    // Show a small note — reuse the hint span or insert one
-    let note = document.getElementById('semIndepNote');
-    if (!note) {
-      note = document.createElement('p');
-      note.id = 'semIndepNote';
-      note.style.cssText = 'font-size:.8rem;color:var(--blue);margin-top:6px;padding:8px 12px;background:rgba(62,107,158,.08);border-radius:8px;border:1px solid rgba(62,107,158,.2)';
-      semRow.parentNode.insertBefore(note, semRow.nextSibling);
-    }
-    note.style.display = 'block';
-    note.textContent = 'ℹ️ This department is independent of semesters — no semester selection needed.';
-    populateSubjectPills(dept, '__all__');
-  } else {
-    semRow.style.display = '';
-    const note = document.getElementById('semIndepNote');
-    if (note) note.style.display = 'none';
-    const semKey = semesterCodeFromDept(dept);
-    populateSemesterDropdown(dept, '');
-    populateSubjectPills('', '');
-    document.getElementById('fprog').value = dept ? dept+'-'+semKey : '';
-  }
-  document.getElementById('fprog').value = dept && !semIndep
-    ? dept + '-' + semesterCodeFromDept(dept)
-    : dept || '';
+  applyDeptSemesterUI(this.value, '');
 });
 
 document.getElementById('fsem').addEventListener('change', function(){
@@ -832,17 +871,10 @@ document.getElementById('fsem').addEventListener('change', function(){
   const sem  = this.value;
   populateSubjectPills(dept, sem);
   if (dept && sem){
-    const semLabel = sem.match(/\((.*?)\)/)?.[1] || '';
-    document.getElementById('fprog').value = dept + (semLabel ? '-'+semLabel : '');
+    const semLbl = sem.match(/\((.*?)\)/)?.[1] || '';
+    document.getElementById('fprog').value = dept + (semLbl ? '-'+semLbl : '');
   }
 });
-
-function semesterCodeFromDept(dept){
-  const sems = getSemesters(dept);
-  if (!sems.length) return '';
-  const match = sems[0].match(/\((.*?)\)/);
-  return match ? match[1] : '';
-}
 
 function buildDayTimePills(){
   const dp = document.getElementById('dayPills');
@@ -872,11 +904,7 @@ function prefillProfile(){
   }
   if (CURRENT_USER.department){
     document.getElementById('fdept').value = CURRENT_USER.department;
-    populateSemesterDropdown(CURRENT_USER.department, CURRENT_USER.semester || '');
-  }
-  if (CURRENT_USER.semester){
-    document.getElementById('fsem').value = CURRENT_USER.semester;
-    populateSubjectPills(CURRENT_USER.department, CURRENT_USER.semester);
+    applyDeptSemesterUI(CURRENT_USER.department, CURRENT_USER.semester || '');
   }
   if (CURRENT_USER.program) document.getElementById('fprog').value = CURRENT_USER.program;
   (CURRENT_USER.days || []).forEach(d => {
@@ -906,6 +934,7 @@ function setStep(n){
 
 document.getElementById('s1next').addEventListener('click', () => {
   const dept = document.getElementById('fdept').value;
+  const semIndep = dept && DEPT_MAP[dept] && DEPT_MAP[dept]['__all__'];
 
   if (!document.getElementById('fname').value.trim()){
     toast('Please enter your name','warn');
@@ -917,7 +946,7 @@ document.getElementById('s1next').addEventListener('click', () => {
     return;
   }
 
-  if (dept !== 'BSMATH' && !document.getElementById('fsem').value){
+  if (!semIndep && !document.getElementById('fsem').value){
     toast('Please select your semester','warn');
     return;
   }
@@ -939,17 +968,16 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   if (!subjects.length){ toast('Pick at least one subject','warn'); return; }
   if (!days.length){ toast('Pick at least one study day','warn'); return; }
   if (!times.length){ toast('Pick at least one time slot','warn'); return; }
+  const dept = document.getElementById('fdept').value;
+  const semIndep = dept && DEPT_MAP[dept] && DEPT_MAP[dept]['__all__'];
   const btn = document.getElementById('saveBtn');
   btn.textContent = 'Saving…';
   const r = await PUT('/profile', {
     name:       document.getElementById('fname').value.trim(),
     campus:     document.getElementById('fcampus').value.trim(),
-    department: document.getElementById('fdept').value,
+    department: dept,
     program:    document.getElementById('fprog').value.trim(),
-    semester:
-  document.getElementById('fdept').value === 'BSMATH'
-    ? '__all__'
-    : document.getElementById('fsem').value,
+    semester:   semIndep ? '__all__' : document.getElementById('fsem').value,
     subjects, days, times,
     style: document.querySelector('input[name="sty"]:checked')?.value || 'solo',
     note:  document.getElementById('fnote').value.trim()
@@ -980,7 +1008,7 @@ function renderMatches(){
     const dept = CURRENT_USER.department || '';
     const sem  = CURRENT_USER.semester || '';
     document.getElementById('gateBanner').classList.add('show');
-    document.getElementById('gateBannerMsg').innerHTML = `No other students from <strong>${esc(dept)}</strong> · <strong>${esc(sem)}</strong> have completed their profile yet. Share the app with your classmates!`;
+    document.getElementById('gateBannerMsg').innerHTML = `No other students from <strong>${esc(dept)}</strong> · <strong>${esc(semLabel(sem))}</strong> have completed their profile yet. Share the app with your classmates!`;
     document.getElementById('matchCount').textContent = '0 matches found';
     return;
   }
@@ -994,10 +1022,22 @@ function renderMatches(){
       ? 'You share '+m.subjects.slice(0,2).join(' & ')+' — check your schedule overlap'
       : 'Compatible study style and schedule';
     const scoreColor = m.score>=70?'var(--blue)':m.score>=45?'var(--stone)':'var(--peach)';
+
+    let actionHtml;
+    if (m.request_status === 'connected'){
+      actionHtml = `<button class="conn-btn" data-act="chat" data-id="${m.id}" style="background:linear-gradient(135deg,var(--stone),#6a5540)">💬 Message</button>`;
+    } else if (m.request_status === 'sent'){
+      actionHtml = `<button class="conn-btn" disabled>⏳ Request Sent</button>`;
+    } else if (m.request_status === 'received'){
+      actionHtml = `<button class="conn-btn" data-act="respond" style="background:linear-gradient(135deg,var(--peach),#8a5540)">Respond →</button>`;
+    } else {
+      actionHtml = `<button class="conn-btn" data-act="request" data-id="${m.id}" data-name="${esc(m.name)}">Send Request</button>`;
+    }
+
     card.innerHTML = `
       <div class="av ${m.avatar}">${esc(m.initials)}</div>
       <div class="minfo">
-        <div class="mname">${esc(m.name)} <span class="mcms">${esc(m.department||'')} · ${esc(m.semester||'')}</span></div>
+        <div class="mname">${esc(m.name)} <span class="mcms">${esc(m.department||'')} · ${esc(semLabel(m.semester))}</span></div>
         <div class="mreason">${esc(reason)}</div>
         <div class="tags">
           ${(m.subjects||[]).slice(0,3).map(s=>`<span class="tag t-t">📚 ${esc(s)}</span>`).join('')}
@@ -1015,15 +1055,24 @@ function renderMatches(){
           </svg>
           <div class="ring-num" style="color:${scoreColor}">${m.score}%</div>
         </div>
-        <button class="conn-btn" data-id="${m.id}" data-name="${esc(m.name)}">Connect</button>
+        ${actionHtml}
       </div>`;
     list.appendChild(card);
     setTimeout(() => {
       card.querySelector('.ring-fill').style.strokeDashoffset = da*(1-m.score/100);
     }, i*100+120);
   });
-  document.querySelectorAll('.conn-btn').forEach(btn =>
-    btn.addEventListener('click', function(){ openStudyRequest(this.dataset.id, this.dataset.name); })
+  document.querySelectorAll('.conn-btn[data-act]').forEach(btn =>
+    btn.addEventListener('click', function(){
+      const act = this.dataset.act;
+      if (act === 'request') openStudyRequest(this.dataset.id, this.dataset.name);
+      else if (act === 'chat'){
+        goTab('chat');
+        const c = CONTACTS.find(x => x.db_id === parseInt(this.dataset.id));
+        if (c) selectContact(c);
+      }
+      else if (act === 'respond') goTab('requests');
+    })
   );
 }
 
@@ -1035,7 +1084,8 @@ function openStudyRequest(id, name){
     ? subjects.map(s=>`<option>${esc(s)}</option>`).join('')
     : '<option>Select subject…</option>';
   openModal(`
-    <h3 style="font-family:'Space Grotesk',sans-serif;font-weight:600;margin-bottom:20px;color:var(--blue)">📬 Send Study Request to ${esc(name)}</h3>
+    <h3 style="font-family:'Space Grotesk',sans-serif;font-weight:600;margin-bottom:6px;color:var(--blue)">📬 Send Study Request to ${esc(name)}</h3>
+    <p style="font-size:.8rem;color:var(--text-dim);margin-bottom:18px">They'll need to accept before you two can chat.</p>
     <div class="fgrid">
       <div class="fg"><label>Subject</label><select id="reqS">${opts}</select></div>
       <div class="fg"><label>Proposed Date &amp; Time</label><input type="datetime-local" id="reqDT"/></div>
@@ -1050,15 +1100,92 @@ function openStudyRequest(id, name){
       message:           document.getElementById('reqMsg').value.trim()
     });
     closeModal();
-    toast(r?.success?'✅ Study request sent to '+name+'!':(r?.error||'Failed to send request'), r?.success?'success':'warn');
+    if (r?.success){
+      toast('✅ Study request sent to '+name+'!','success');
+      await Promise.all([loadMatches(), loadRequests()]);
+      renderMatches();
+    } else {
+      toast(r?.error || 'Failed to send request', 'warn');
+    }
   });
+}
+
+function initials(name){
+  return (name||'?').split(' ').map(w=>w[0]).filter(Boolean).join('').toUpperCase().slice(0,2);
+}
+
+function renderRequests(){
+  const inc = document.getElementById('incomingReqList');
+  const out = document.getElementById('outgoingReqList');
+
+  if (!REQUESTS.incoming.length){
+    inc.innerHTML = '<div class="empty-state" style="padding:30px 20px"><div class="es-icon">📭</div><p>No incoming requests yet.</p></div>';
+  } else {
+    inc.innerHTML = '';
+    REQUESTS.incoming.forEach(r => {
+      const div = document.createElement('div');
+      div.className = 'mcard';
+      const when = r.proposed_datetime ? new Date(r.proposed_datetime).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'}) : '';
+      div.innerHTML = `
+        <div class="av av2">${esc(initials(r.sender_name))}</div>
+        <div class="minfo">
+          <div class="mname">${esc(r.sender_name)}</div>
+          <div class="mreason">Wants to study <strong>${esc(r.subject||'together')}</strong>${when?' · '+esc(when):''}</div>
+          ${r.message?`<div class="mreason" style="font-style:italic">"${esc(r.message)}"</div>`:''}
+        </div>
+        <div class="msc-wrap">
+          ${r.status==='pending' ? `
+            <button class="conn-btn" data-act="accept" data-id="${r.id}">✅ Accept</button>
+            <button class="conn-btn" data-act="decline" data-id="${r.id}" style="background:transparent;color:var(--peach);border:1px solid rgba(192,122,90,.3);box-shadow:none">Decline</button>
+          ` : `<span class="tag ${r.status==='accepted'?'t-t':'t-block'}">${r.status==='accepted'?'✅ Accepted':'Declined'}</span>`}
+        </div>`;
+      inc.appendChild(div);
+    });
+    inc.querySelectorAll('[data-act]').forEach(btn => {
+      btn.addEventListener('click', async function(){
+        const status = this.dataset.act === 'accept' ? 'accepted' : 'declined';
+        const r = await PUT('/requests/'+this.dataset.id, {status});
+        if (r?.success){
+          toast(status==='accepted' ? '🎉 Request accepted — you can chat now!' : 'Request declined', 'success');
+          await Promise.all([loadRequests(), loadMatches()]);
+          await loadContacts();
+          renderRequests(); renderMatches(); renderContactList();
+        } else {
+          toast(r?.error || 'Something went wrong', 'warn');
+        }
+      });
+    });
+  }
+
+  if (!REQUESTS.outgoing.length){
+    out.innerHTML = '<div class="empty-state" style="padding:30px 20px"><div class="es-icon">📤</div><p>You haven\u2019t sent any requests yet — head to Matches to find a buddy!</p></div>';
+  } else {
+    out.innerHTML = '';
+    REQUESTS.outgoing.forEach(r => {
+      const div = document.createElement('div');
+      div.className = 'mcard';
+      const statusTag = r.status==='accepted'
+        ? '<span class="tag t-t">✅ Accepted</span>'
+        : r.status==='declined'
+          ? '<span class="tag t-block">Declined</span>'
+          : '<span class="tag t-g">⏳ Pending</span>';
+      div.innerHTML = `
+        <div class="av av3">${esc(initials(r.receiver_name))}</div>
+        <div class="minfo">
+          <div class="mname">${esc(r.receiver_name)}</div>
+          <div class="mreason">${esc(r.subject||'Study together')}</div>
+        </div>
+        <div class="msc-wrap">${statusTag}</div>`;
+      out.appendChild(div);
+    });
+  }
 }
 
 function renderContactList(){
   const cl = document.getElementById('contactList');
   cl.innerHTML = '';
   if (!CONTACTS.length){
-    cl.innerHTML='<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:.82rem">No conversations yet.<br>Connect with a match!</div>';
+    cl.innerHTML='<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:.82rem">No connections yet.<br>Send a study request from Matches and wait for them to accept!</div>';
     return;
   }
   CONTACTS.forEach(c => {
@@ -1165,7 +1292,7 @@ document.getElementById('profileBtn').addEventListener('click', () => {
     <div style="text-align:center;margin-bottom:24px">
       <div class="av ${match.avatar}" style="width:62px;height:62px;font-size:1.4rem;border-radius:18px;margin:0 auto 14px">${esc(match.initials)}</div>
       <h3 style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1.2rem;color:var(--text)">${esc(match.name)}</h3>
-      <p style="color:var(--text-dim);font-size:.83rem;margin-top:5px">${esc(match.department||'')} · ${esc(match.semester||'')}</p>
+      <p style="color:var(--text-dim);font-size:.83rem;margin-top:5px">${esc(match.department||'')} · ${esc(semLabel(match.semester))}</p>
     </div>
     <div style="display:flex;flex-direction:column;gap:16px">
       <div><p style="font-size:.68rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;font-family:'Space Mono',monospace;margin-bottom:8px">Subjects</p>
@@ -1247,7 +1374,7 @@ document.getElementById('logBtn').addEventListener('click', async () => {
   const pid=document.getElementById('logP').value;
   const subj=document.getElementById('logS').value;
   const date=document.getElementById('logD').value;
-  if (!pid){ toast('No matches found — complete your profile first','warn'); return; }
+  if (!pid){ toast('No connected buddies yet — accept or send a request first','warn'); return; }
   if (!date){ toast('Please select a date','warn'); return; }
   const r=await POST('/sessions',{partner_id:parseInt(pid),subject:subj,date,rating:logRating});
   if (r?.success){
